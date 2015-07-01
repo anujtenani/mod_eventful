@@ -138,12 +138,12 @@ send_data(Event, Data, State) ->
         false ->
             Headers = []
     end,
-    case is_list(Url) of
+    case is_binary(Url) of
         true ->
             ?INFO_MSG("Triggered post from event: ~p, Data: ~p",[Event, Data]),
             httpc:request(
                 post, {
-                    Url,
+                    binary_to_list(Url),
                     Headers,
                     "application/x-www-form-urlencoded", Data
                 },
