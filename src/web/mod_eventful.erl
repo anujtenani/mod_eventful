@@ -13,6 +13,7 @@
 
 -behaviour(gen_server).
 -behaviour(gen_mod).
+-include("logger.hrl").
 
 -define(PROCNAME, ?MODULE).
 
@@ -58,12 +59,16 @@ send_message(From, To, P) ->
             ok
     end.
 
+element_to_string(Element) ->
+  binary_to_list(xml:element_to_binary(Element)).
+
+
 set_presence_log(User, Server, Resource, Presence) ->
-    post_results(set_presence_hook, User, Server, Resource, lists:flatten(xml:element_to_string(Presence))),
+    post_results(set_presence_hook, User, Server, Resource, lists:flatten(element_to_string(Presence))),
     case ejabberd_sm:get_user_resources(User,Server) of
         [_] ->        
             %%% First connection, so user has just come online
-            post_results(online_hook, User, Server, Resource, lists:flatten(xml:element_to_string(Presence)));
+            post_results(online_hook, User, Server, Resource, lists:flatten(element_to_string(Presence)));
         _ ->
             false
     end,
@@ -105,11 +110,11 @@ url_for(Event, Urls) ->
     
 % parse a message and return the body string if successful
 % return ignore if the message should not be stored
-parse_message(From, To, {xmlelement, "message", _, _} = Packet) ->
-    Type    = xml:get_tag_attr_s("type", Packet),
-    Subject = get_tag_from("subject", Packet),
-    Body    = get_tag_from("body", Packet),
-    Thread  = get_tag_from("thread", Packet),
+parse_message(From, To, {xmlel, <<"message">>, _, _} = Packet) ->
+    Type    = xml:get_tag_attr_s(<<"type">>, Packet),
+    Subject = get_tag_from(<<"subject">>, Packet),
+    Body    = get_tag_from(<<"body">>, Packet),
+    Thread  = get_tag_from(<<"thread">>, Packet),
     #message{from = jlib:jid_to_string(From), to = jlib:jid_to_string(To), type = Type, subject = Subject, body = Body, thread = Thread};
 parse_message(_From, _To, _) -> ignore.
 
@@ -133,12 +138,12 @@ send_data(Event, Data, State) ->
         false ->
             Headers = []
     end,
-    case is_list(Url) of
+    case is_binary(Url) of
         true ->
             ?INFO_MSG("Triggered post from event: ~p, Data: ~p",[Event, Data]),
-            http:request(
+            httpc:request(
                 post, {
-                    Url,
+                    binary_to_list(Url),
                     Headers,
                     "application/x-www-form-urlencoded", Data
                 },
@@ -164,10 +169,12 @@ init([Host, _Opts]) ->
     ejabberd_hooks:add(user_send_packet,    Host, ?MODULE, send_message,       50),
     ejabberd_hooks:add(set_presence_hook,   Host, ?MODULE, set_presence_log,   50),
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, unset_presence_log, 50),
-    Urls         = gen_mod:get_module_opt(global, ?MODULE, url, []),
-    AuthUser     = gen_mod:get_module_opt(global, ?MODULE, user,     undefined),
-    AuthPassword = gen_mod:get_module_opt(global, ?MODULE, password, undefined),
+    Urls         = gen_mod:get_module_opt(global, ?MODULE, url, fun id/1, []),
+    AuthUser     = gen_mod:get_module_opt(global, ?MODULE, user,  fun id/1,    undefined),
+    AuthPassword = gen_mod:get_module_opt(global, ?MODULE, password,  fun id/1,undefined),
     {ok, #state{host = Host, urls = Urls, auth_user = AuthUser, auth_password = AuthPassword}}.
+
+id(T) -> T.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -179,23 +186,28 @@ init([Host, _Opts]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({post_results, message_hook, Message}, _From, State) ->
-    Data = "from="     ++ ejabberd_http:url_encode(Message#message.from) ++
-           "&to="      ++ ejabberd_http:url_encode(Message#message.to) ++
-           "&type="    ++ ejabberd_http:url_encode(Message#message.type) ++ 
-           "&subject=" ++ ejabberd_http:url_encode(Message#message.subject) ++
-           "&body="    ++ ejabberd_http:url_encode(Message#message.body) ++
-           "&thread="  ++ ejabberd_http:url_encode(Message#message.thread),
+    Data = "from="     ++ url_encode(Message#message.from)++
+           "&to="      ++ url_encode(Message#message.to)++
+           "&type="    ++ url_encode(Message#message.type)++ 
+           "&subject=" ++ url_encode(Message#message.subject)++
+           "&body="    ++ url_encode(Message#message.body)++
+           "&thread="  ++ url_encode(Message#message.thread),
     send_data(message_hook, Data, State),
     {reply, ok, State};
 handle_call({post_results, Event, User, Server, Resource, Message}, _From, State) ->
-    Data = "user="      ++ ejabberd_http:url_encode(User) ++
-           "&server="   ++ ejabberd_http:url_encode(Server) ++
-           "&resource=" ++ ejabberd_http:url_encode(Resource) ++ 
-           "&message="  ++ ejabberd_http:url_encode(Message),
+    Data = "user="      ++ url_encode(User)++
+           "&server="   ++ url_encode(Server)++
+           "&resource=" ++ url_encode(Resource)++ 
+           "&message="  ++ url_encode(Message),
     send_data(Event, Data, State),
     {reply, ok, State};
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.
+
+url_encode(List) when is_list(List) ->
+  url_encode(list_to_binary(List));
+url_encode(Bin) when is_binary(Bin) ->
+  binary_to_list(ejabberd_http:url_encode(Bin)).
     
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
