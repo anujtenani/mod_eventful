@@ -123,7 +123,7 @@ get_tag_from(Tag, Packet) ->
         false -> 
             "";
         Xml   ->
-            xml:get_tag_cdata(Xml)
+            xml:get_tag_cdatai(Xml)
     end.
     
 send_data(Event, Data, State) -> 
@@ -140,7 +140,6 @@ send_data(Event, Data, State) ->
     end,
     case is_binary(Url) of
         true ->
-            ?INFO_MSG("Triggered post from event: ~p, Data: ~p",[Event, Data]),
             httpc:request(
                 post, {
                     binary_to_list(Url),
