@@ -224,13 +224,10 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({http, {RequestId, stream_start, Headers}}, State) ->
-    ?DEBUG("http stream_start RequestId: ~p, Headers: ~p",[RequestId, Headers]),
     {noreply, State};
 handle_info({http, {RequestId, stream, BinBodyPart}}, State) ->
-    ?DEBUG("http stream RequestId: ~p, BinBodyPart: ~p",[RequestId, BinBodyPart]),
     {noreply, State};
 handle_info({http, {RequestId, stream_end, Headers}}, State) ->
-    ?DEBUG("http stream_end RequestId: ~p, Headers: ~p",[RequestId, Headers]),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
