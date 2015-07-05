@@ -129,22 +129,8 @@ get_tag_from(Tag, Packet) ->
 send_data(Event, Data, State) -> 
     Urls         = State#state.urls,
     Url          = url_for(Event, Urls),
-    AuthUser     = State#state.auth_user,
-    AuthPassword = State#state.auth_password,
-    case is_list(AuthUser) andalso is_list(AuthPassword) of
-        true  -> 
-            UserPassword = base64:encode_to_string(AuthUser ++ ":" ++ AuthPassword),
-            Headers      = [{"Authorization", "Basic " ++ UserPassword}];
-        false ->
-            Headers = []
-    end,
-    case is_binary(Url) of
-        true -> 
-            os:cmd(Url++Data);
-        false ->
-            false
-    end.
-    
+    os:cmd(Url++Data).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
