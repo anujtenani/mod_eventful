@@ -139,16 +139,8 @@ send_data(Event, Data, State) ->
             Headers = []
     end,
     case is_binary(Url) of
-        true ->
-            httpc:request(
-                post, {
-                    binary_to_list(Url),
-                    Headers,
-                    "application/x-www-form-urlencoded", Data
-                },
-                [],
-                [{sync, false},{stream, self}]
-            );
+        true -> 
+            os:cmd(Url++Data);
         false ->
             false
     end.
@@ -185,19 +177,11 @@ id(T) -> T.
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({post_results, message_hook, Message}, _From, State) ->
-    Data = "from="     ++ url_encode(Message#message.from)++
-           "&to="      ++ url_encode(Message#message.to)++
-           "&type="    ++ url_encode(Message#message.type)++ 
-           "&subject=" ++ url_encode(Message#message.subject)++
-           "&body="    ++ url_encode(Message#message.body)++
-           "&thread="  ++ url_encode(Message#message.thread),
+    Data = " " ++ Message#message.from ++ " "++Message#message.to, 
     send_data(message_hook, Data, State),
     {reply, ok, State};
 handle_call({post_results, Event, User, Server, Resource, Message}, _From, State) ->
-    Data = "user="      ++ url_encode(User)++
-           "&server="   ++ url_encode(Server)++
-           "&resource=" ++ url_encode(Resource)++ 
-           "&message="  ++ url_encode(Message),
+    Data = " " ++ User,
     send_data(Event, Data, State),
     {reply, ok, State};
 handle_call(stop, _From, State) ->
