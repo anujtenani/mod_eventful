@@ -101,21 +101,16 @@ post_results(Event, User, Server, Resource, Message) ->
     Proc = gen_mod:get_module_proc(Server, ?PROCNAME),
     gen_server:call(Proc, {post_results, Event, User, Server, Resource, Message}).
 
-url_for(Event, Urls) ->
-    case lists:keysearch(Event,1,Urls) of
-        {value,{_,Result}} -> Url = Result;
-        _                  -> Url = undefined
-    end,
-    Url.
     
 % parse a message and return the body string if successful
 % return ignore if the message should not be stored
-parse_message(From, To, {xmlel, <<"message">>, _, _} = Packet) ->
-    Type    = xml:get_tag_attr_s(<<"type">>, Packet),
-    Subject = get_tag_from(<<"subject">>, Packet),
-    Body    = get_tag_from(<<"body">>, Packet),
-    Thread  = get_tag_from(<<"thread">>, Packet),
-    #message{from = jlib:jid_to_string(From), to = jlib:jid_to_string(To), type = Type, subject = Subject, body = Body, thread = Thread};
+
+parse_message(From, To, {xmlel, <<"message">>, _attributes , _children} = Packet) ->
+%%    Type    = xml:get_tag_attr_s(<<"type">>, Packet),
+%%    Subject = get_tag_from(<<"subject">>, Packet),
+%%    Body    = get_tag_from(<<"body">>, Packet),
+%%    Thread  = get_tag_from(<<"thread">>, Packet),
+    #message{from = jlib:jid_to_string(From), to = jlib:jid_to_string(To)};
 parse_message(_From, _To, _) -> ignore.
 
 get_tag_from(Tag, Packet) ->
@@ -127,10 +122,9 @@ get_tag_from(Tag, Packet) ->
     end.
     
 send_data(Event, Data, State) -> 
-    Urls         = State#state.urls,
-    Url          = url_for(Event, Urls),
-    os:cmd(Url++Data).
-
+    Url = State#state.urls,
+    CMD = lists:append([binary_to_list(Url),[" "],atom_to_list(Event),[" "],Data]),
+    os:cmd(CMD).
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -145,8 +139,8 @@ init([Host, _Opts]) ->
     inets:start(),
     ejabberd_hooks:add(user_send_packet,    Host, ?MODULE, send_message,       50),
     ejabberd_hooks:add(set_presence_hook,   Host, ?MODULE, set_presence_log,   50),
-    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, unset_presence_log, 50),
-    Urls         = gen_mod:get_module_opt(global, ?MODULE, url, fun id/1, []),
+    ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, unset_presence_log, 50),    
+    Urls         = gen_mod:get_module_opt(global, ?MODULE, url, fun id/1, undefined),
     AuthUser     = gen_mod:get_module_opt(global, ?MODULE, user,  fun id/1,    undefined),
     AuthPassword = gen_mod:get_module_opt(global, ?MODULE, password,  fun id/1,undefined),
     {ok, #state{host = Host, urls = Urls, auth_user = AuthUser, auth_password = AuthPassword}}.
@@ -163,11 +157,11 @@ id(T) -> T.
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({post_results, message_hook, Message}, _From, State) ->
-    Data = " " ++ Message#message.from ++ " "++Message#message.to, 
+    Data = lists:append([binary_to_list(Message#message.from),[" "],binary_to_list(Message#message.to)]), 
     send_data(message_hook, Data, State),
     {reply, ok, State};
 handle_call({post_results, Event, User, Server, Resource, Message}, _From, State) ->
-    Data = " " ++ User,
+    Data = binary_to_list(User),
     send_data(Event, Data, State),
     {reply, ok, State};
 handle_call(stop, _From, State) ->
